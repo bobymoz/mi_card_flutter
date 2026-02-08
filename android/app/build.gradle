@@ -34,14 +34,12 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            
+            // ATIVAR COMPRESSÃO MÁXIMA
+            minifyEnabled true
+            shrinkResources true
+            
+            // Usa as regras que criamos para não quebrar a VPN
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-}
-
-flutter {
-    source '../..'
-}
-
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-}
