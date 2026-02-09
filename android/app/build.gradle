@@ -16,7 +16,7 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    namespace "co.appbrewery.mi_card" // Mantém o original para não quebrar pastas
+    namespace "co.appbrewery.mi_card"
     compileSdkVersion 34
     
     sourceSets {
@@ -24,22 +24,34 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.leone.vpn_premium" // O ID do seu App
-        minSdkVersion 24 // OBRIGATÓRIO PARA OPENVPN
+        applicationId "com.leone.vpn_premium"
+        minSdkVersion 24
         targetSdkVersion 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.0.1"
+        
+        // AQUI ESTÁ A MÁGICA: Só inclui arquiteturas de celular (ARM)
+        // Remove x86 (Intel/PC) que pesa muito e ninguém usa no celular
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
 
     buildTypes {
         release {
+            // Mantemos a compressão de código ativada também
             signingConfig signingConfigs.debug
-            
-            // ATIVAR COMPRESSÃO MÁXIMA
             minifyEnabled true
             shrinkResources true
-            
-            // Usa as regras que criamos para não quebrar a VPN
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
