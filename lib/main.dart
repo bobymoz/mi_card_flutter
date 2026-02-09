@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Necessário para copiar logs
+import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
@@ -40,7 +40,6 @@ class VPNHomePage extends StatefulWidget {
 }
 
 class _VPNHomePageState extends State<VPNHomePage> {
-  // --- Variáveis de Estado ---
   late OpenVPN engine;
   VPNStage? _vpnStage;
   VpnStatus? _vpnStatus;
@@ -49,17 +48,122 @@ class _VPNHomePageState extends State<VPNHomePage> {
   Timer? _heartbeatTimer;
   bool _isLoading = false;
   
-  // --- Sistema de Logs ---
   final List<String> _logs = [];
   final ScrollController _logScrollCtrl = ScrollController();
 
   final String _apiBaseUrl = "http://51.79.117.132:8080";
   final String _whatsAppLink = "https://wa.me/258863018405";
 
-  // --- CONFIGURAÇÃO OBFUSCADA (BASE64 DIVIDIDA) ---
-  // Dividida em partes para evitar erro de copy-paste
-  final String _vpnConfigPart1 = "Y2xpZW50CmRldiB0dW4KcHJvdG8gdWRwCnJlbW90ZSA1MS43OS4xMTcuMTMyIDUzCnJlc29sdi1yZXRyeSBpbmZpbml0ZQpub2JpbmQKcGVyc2lzdC1rZXkKcGVyc2lzdC10dW4KcmVtb3RlLWNlcnQtdGxzIHNlcnZlcgphdXRoIFNIQTUxMgppZ25vcmUtdW5rbm93bi1vcHRpb24gYmxvY2stb3V0c2lkZS1kbnMKdmVyYiAzCjxjZXJ0PgotLS0tLUJFR0lOIENFUlRJRklDQVRFLS0tLS0KTUlJRFZEQ0NBanlnQXdJQkFnSVFjNDhYbURMaEZCVjRTSFE4NjIySVl6QU5CZ2txaGtpRzl3MEJBUXNGQURBVwpNUlF3RWdZRFZRUUREQXRGWVhONS1XSlRRU0JEUVRBZUZ3MHlOakF5TURjeU1UUTBNRGxhRncwek5qQXlNRFV5Ck1UUTBNRGxhTUJFeER6QU5CZ05WQkFNTUJtTnNhV1Z1ZENDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dFUAZENDNDQVFvQ2dnRUJBS3pHSzAveStZS2pOWW5yZFB1Y1VaRDhwcFgzcTJrd1ZLeUxoS2JObXhGaWE4YnlWSVJvClQwci9XNmgrTktaREs1UjBaM0xpeVd2NXlaZkhENlhvNC91U1Q1UTJRbW1TZG5yK0tIRnhOcnFibDVCRjRId1oKVGZIRWhyOHR5OXBhdko3bVhYSWRRd3p1R2x6am9ONWpBb2IrWXVNVGpKeU1qYktTaXZReWUrSG15eVhYMGpDeQpncWpnb2VwdTRwQThpR0cvVjRRdXhsWHh4OTJFd1M0LzdwRlpVUk9iNXp3b3E1NnpXVXFrVzJRS0VISlpVazdhCkdaUzRYQmtGT3Z6STV4VW85WUI4SEpQeUFLU1ptdnVjTU8yTmt4ZURIUzdva2FZOFd0Qkd0U1RremFtWjhNTWwKSThIMSswSmZ3MTJEN0cwOW55VGZlL0pCTWh3WTRIOUxsbFVDQXdFQUFhT0JvakNCbnpBSkJnTlZIUk1FQWpBQQpNQjBHQTFVZERnUVdCQlFrbWJHbWFmV0JpSFRzTlBKUko0UWlUUmp5TXpCUkJnTlZIU01FU2pCSWdCU0xyTDlFCkRyRzl6SUpFdmRrOVpDaDVxYUpwSnFFYXBCZ3dGakVVTUJJR0ExVUVBd3dMUldGemVTMVNVMUVHUVVGQ2ZcCkFSUVNiSVpxM29CMVVwenFJR2gxVWwrTUJNR0ExVWRKUVFNTUFvR0NDc0dBUVVGQndNQ01Bc0dBMVVkRHdRRQpBd0lIZ0RBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQVo1d255Rlgwd1liOCtkeVd2VGNBclFQR25TelV6a0R0CnhRUVdrU3JwT1BlTlpPNEozZFR0dUppUGE5NEUvNkFteFl3SkRUVS9HUG5keHJUdWw3MXNKS0YvdzM1dENrMGEKU1dIM1NlK2owaVFSOW93bEFaTjV1ZDNDNkVSNWQzeXhhQnVqS2tsUUJwc25Ma2FML2VicmU5TGs2VmxmQmRPQwpYZXFGOFJuSTk2eE5HVDFFZzN5UHdnd3p2MzFHT3V1KzBnSUVOMXU0a2lYLzdodElsQWpFZldLZVpyRWw4OTlKCkRmVzBYRk1KOTlYRS9tTXZmS01OeVpoTXVXNk41M0U3WStmRG9PeWhSSXFLZ2JBQlErQWMzdWxsd29pMXVnVDYKUmd3bFlqM2NIRXlIM2ZSK29SdExQNmx2UGJWaFMwL0VmUWdqUXMxWFhpeC9lL09IamVxMTRRPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo8L2NlcnQ+CjxrZXk+Ci0tLS0tQkVHSU4gUFJJVkFURSBLRVktLS0tLQpNSUlFdkFJQkFEQU5CZ2txaGtpRzl3MEJBUUVGQUFTQ0JLWXdHZ1NpQWdFQUFvSUJBUUNzeEdLMC95K1lLak5ZCm5yZFB1Y1VaRDhwcFgzcTJrd1ZLeUxoS2JObXhGaWE4YnlWSVJvVDByL1c2aCtOS1pESzVSMFozTGl5V3Y1eVoKZkhENlhvNC91U1Q1UTJRbW1TZG5yK0tIRnhOcnFibDVCRjRId1pUZkhFaHI4dHk5cGF2SjdtWFhJZFF3enVHbAp6am9ONWpBb2IrWXVNVGpKeU1qYktTaXZReWUrSG15eVhYMGpDeWdxamdvZXB1NHBBOGlHRy9WNFF1eGxYeHg5CjJFd1M0LzdwRlpVUk9iNXp3b3E1NnpXVXFrVzJRS0VISlpVazdhR1pTNHhCa0ZPdnpJNXhVbzlZQjhISlB5QUsKU1ptdnVjTU8yTmt4ZURIUzdva2FZOFd0Qkd0U1RremFtWjhNTWxJOEgxKzBKZncxMkQ3RzA5bnlUZmUvSkJNCmh3WTRIOUxsbFVDQXdFQUFRSUNnZ0VBREduWmdtdUtzcGlDekorbUNHVERubW8yWFdUdmtscFZFVHdOWDVraApVTW82R1VEcUpDeWl6UjBZaXQzQ3RlM0RkTTQ0Vy8wVllTVFVJVXpMR1oyTkJrR1NVRTVYNnNsY0xMTjJHcktleQo0V0NvVDRSQWRyTE1rYWRAaHZrM2hkMzJaQ2NuK2I3eGhhUkxjdGEvajNQWDFiRzVLSlBMb0FtVm9rR3NYYllaCldoNnJTN2tHTS9waTRVbElZd1V2RGdQd1VTT2FXVkN6M3QxcUNSbzNDN1hQTDMxWUdaTFpBem1HWGx2cmtDZVAKb3VaSFlVY2R1NWFZQmRFZytDaG5SMFJ0UzVlK2JuZHJVWUR6M1ZDbTRZQ2dDVHZieXVQZUhrVTlxM0NFdjh3bgpQVXk4WlRHY1BzeFFkRktPTlJWZ3NBTW5KZnpQOHR6ZjNZS3VXY0d5dm1RNndLQmdRRHhmaElBdnEvQWpJajYKQ013MnE2eXpDRHMzZlg0WDQwcUxYcnE1Sk12dVpyRE9PSmJCRFQ2dkF0ckZjQXdxNUVVREdiRUVVenFjK0QxWApwajZPMmVlQWJ5d1pEeFZWR2xiTklnd25UK0RtSmp6UWJEdGZ4K0lvVytqSmpTbTRGRjlYcVZtWDNPcHJoeHdKCk83MXF5dVhjcG43aTZEZzI3QmY1K1hwdU9iYzhod0tCZ1FDM0owWTNWbkRMTzZ6aWNZT0N5Q2hjUGdnRjQ1ZHp0ClA4eXliWWhVdmViWkhSU00vS0dIbU8zMG1Od2p3UlNNY3FoTGk4T3c1TFcrNHZwQXBDdFNOVCtGT2RDY1lXWksKdTRWQmVzS3VKdTNBUFd3bDk5QTZ6Z0t4V3VOdVp6Ylh0RDJXajZ4QTF6S3Z0VHNmUlNIT3VkK0RBbWQvc09NUwpVVTNLWTdLcHBvSlF3S0JnRWRnOXh0SEdaV05OSE9MSkNsSXB2d29BN0RNSTNnVms1UVEvNW4zMlZzMitTMkxKCm13YmFScTdva1JYY1JGQWRYR01KM2xhekdsWEtuSjh6ZUxWWDRyajBVbjYzbGhRTjdYY1NYRlpOK1Z2Q2V5bEEKUXUzZmc1bDFERzJ5czBCSUlrOTlvaUMw";
-  final String _vpnConfigPart2 = "2lvTjNtaVFRdFdNOFZJOTJDVmpkREl2cUlxWGhldU1uYStEQW9HQQpSc3dLcXFkZGhrRjNIN1Z3OW5xOHFVc1d6cWpzWWp5UjJ4VFlOamZKWkxsIjlUODArd1RNOERwRm4yTm1mckxvCk1QcE93b3Y5Y1luZW4xSEVtWmFWU2w4aVN3QzlMbWpKckIzdGJLWERGbUU3bnV3dHB4QmxvZDFscXdzVHQ2aXAKVGtmYStad1JLdVNCZG1BekV4bnpoWXhYTjN3RGY3ZE4zWndJSHk3VWpMSUNzQ2dZQitXS2t6bW5Fd2ovb2hrdApIU0dMUDdVZGROeTMwTVhzWXZHK1c4Z040YStTdXlxa1UwcDBDWWVERUtlRTUxeWZrdGxWdkxPeTI1YTJWUk4rCkRXNEpneDZJREtWQTNDVllIUkNTaEtPWStvWlB5Qk9IM28xNVFpM29taVZtSmJWdnc4STVqWTJEUjJDVStFanIKREQwNUU1NXQ4ak5pUTNLcHVOTEd2MC81emxwU1E9PQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCjwva2V5Pgo8Y2E+Ci0tLS0tQkVHSU4gQ0VSVElGSUNBVEUtLS0tLQpNSUlEU3pDQ0FqT2dBd0lCQWdJVVErRkFCUkJKc2htcmVnSFZTbk9vZ2FIVlNYNHdEUVlKS29aSWh2Y05BUUVMCkJRQXdGakVVTUJJR0ExVUVBd3dMUldGemVTMVNVMUVHUVVGQ2ZcCkFSUVNiSVpxM29CMVVwenFJR2gxVWwrTUExR0ExVUREd1FFQXdJQmdEQW5CZ2txaGtpRzl3MEJBUXNGQUFPQwpBUUVBU01yVnhSM084bk5XZTBCUitERDRGUDY1SDZWOAvRUlZTHZBNHgyRnBDL0E2CmNiY2N2QkJGQVRJU3NRZTBYTittalQ0bDZSdkxqVlA2MzM0TDZOGGxsVFdGNDl1YWtjZm94ak83ZXJyV011K00KZGNrMmoyOTFoMGU2TnBkUFJLVWZpTjk4NTUwbHJtcHowZHJoUjg1anZWYUVnR2M0cXd4MkpXM1VJOWxZRXBvOAppMGlHbEJ5ODk4RURwaGhsMHlFaGk0Y2dvY2FNVkcrQkxIUXZYYlVnaCtVTUFKdXZqdEs1RE1QdkYra0VXd0VvCnZoeWVJWTBiSzRkQUVKNU9wOENpTkNpYlpyTGt2YmVaZ1RvaHNweW10QTZURis4SXhCWDdFRE1jc1BDTkFxeWJGCm1welZwcURTd0szS2dOY2NIU2JiR1ZsaU0wUXkrOVNyMjkvTWNQeE5iUT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0KPC9jYT4KPHRscy1jcnlwdD4KLS0tLS1CRUdJTiBPcGVuVlBOIFN0YXRpYyBrZXkgVjEtLS0tLQoxOWYwZTU5NDBiMDkwODJjMDI4NGMwMzY4NzhhMjRjNgpmODhjM2E0YjhmOWYzN2I5N2EzNWI4M2E3MGVjZWY0NwpmMWNhMDFhMDYzNTY3MmNhZThiMjk2NWRmZmFkYTBkYwo0NjM0NTI0MmEwZDVlNTg2NjE2MjQxMzU1MGNjMTg5NQo5M2M1Y2E2OWFhMGE5OGI3MzBjN2E4YzAyZWRmNWRmNApkZDI4ODEzZGI1YTgxYmU5ZjRmNjdmNzYwNjBjMDcyZgo5MjRjNWI5ZTJkYzcwYTU1MjdmMmEwZDcwZWY5YjIwMApkZDNhYjQ5NzNkMjJlNDYxZmU0NGMxZjcxOGVlMDY2Ngo2NDQ2OGYyOWRkYjcwMDdhNTkxMDI0MWRlYTYxNDA0NgozYWY0ZDZhYTY3NjQzYTEwODM2Yjc3YmFjODllY2Q1YwpiYjEyOThlNzA0YzA1ODc1Yzg0MmFjYTJkY2Y1YzZhYwpmYWNkMzU2MzU5OTZlYzIzODAwZjVkY2ZkZGYwNDczZgo4MjNmZGZkMDFmZGFmYmI5YTAxZTZlODFjNjdhZGFkMgo1OWIxMmZmZGU5YjBhNzA1M2UzODMyZGM0YTBmYTM0Mgo2ZDg5YTRhN2JhNzhjNjQ1YjQ4YjkzZDAwMGEwOGFkOAowNDY1NmMwOWFmYmY3N2UwZDYyYmZjMGVkZmE2YWEzMgotLS0tLUVORCBPcGVuVlBOIFN0YXRpYyBrZXkgVjEtLS0tLQo8L3Rscy1jcnlwdD4K";
+  // --- CONFIGURAÇÃO EM TEXTO PLANO (RAW) ---
+  // Usamos aspas triplas (''') para colar o texto exato sem erros de formatação
+  final String _vpnConfigRaw = '''
+client
+dev tun
+proto udp
+remote 51.79.117.132 53
+resolv-retry infinite
+nobind
+persist-key
+persist-tun
+remote-cert-tls server
+auth SHA512
+ignore-unknown-option block-outside-dns
+verb 3
+<cert>
+-----BEGIN CERTIFICATE-----
+MIIDVDCCAjygAwIBAgIQc48XmDLhFBV4SHQ8622IYzANBgkqhkiG9w0BAQsFADAW
+MRQwEgYDVQQDDAtFYXN5LVJTQSBDQTAeFw0yNjAyMDcyMTQ0MDlaFw0zNjAyMDUy
+MTQ0MDlaMBExDzANBgNVBAMMBmNsaWVudDCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBAKzGK0/y+YKjNYnrdPucUZD8ppX3q2kwVKyLhKbNmxFia8byVIRo
+T0r/W6h+NKZDK5R0Z3LiyWv5yZfHD6Xo4/uST5Q2QmmSdnr+KHFxNrqbl5BF4HwZ
+TfHEhr8ty9pavJ7mXXIdQwzuGlzjoN5jAob+YuMTQjyMjbKSivQye+HmyYXX0jCy
+gqjgoepu4pA8iGG/V1QuxlXxx92EwS4/7pFZUROb5zwoq56zWUqkW2QKEHJZOk7a
+GZS4XBkFOvzI5xUo9YB8HJPyAKSZmvucMO2NkxeDHS7okaY8WtBGtSTkzamZ8MMl
+I8H1+0Jfw12D7G09nyTfe/JBMhwY4H9LllUCAwEAAaOBojCBnzAJBgNVHRMEAjAA
+MB0GA1UdDgQWBBQkmbGmafWBiHTsNPJRJ4QiTRjyMzBRBgNVHSMESjBIgBSLrL9E
+DrG9zIJEvdk9ZCh5qaJpJqEapBgwFjEUMBIGA1UEAwwLRWFzeS1SU0EgQ0GCFEPh
+QARQSbIZq3oB1UpzqIGh1Ul+MBMGA1UdJQQMMAoGCCsGAQUFBwMCMAsGA1UdDwQE
+AwIHgDANBgkqhkiG9w0BAQsFAAOCAQEAZ5wnyFX0wYb8+dyWvTcArQPGnSzUzkDt
+xQQWkSrpOPeNZO4J3dTtuJfPa94E/6BmxYwJDTU/GPndxrTul71sJKF/w35tCk0a
+SWH3Se+j0iQR9owlAZN5ud3C6ER5d3yxaBujKklQBpsnLkaL/ebre9Lk6VlmBdOC
+XeqF8RnI96xNGT1Eg3yPwgwzv31GOuu+0gIEN1u4kiX/7htIlAjEfWKQZrEl899J
+DfW0XFMJ99XE/mMvfKMNyZhMuW6N53E7Y+fDoOyhRIqKgbABQ+Ac3ullwoi1ugT6
+RgwlYj3cHEyH3fR+oRtLP6lvPbVhS0/EfQgjQs1XXix/e/OHjeq14Q==
+-----END CERTIFICATE-----
+</cert>
+<key>
+-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCsxitP8vmCozWJ
+63T7nFGQ/KaV96tpMFSsi4SmzZsRYmvG8lSEaE9K/1uofjSmQyuUdGdy4slr+cmX
+xw+l6OP7kk+UNkJpknZ6/ihxcTa6m5eQReB8GU3xxIa/LcvaWrye5l1yHUMM7hpc
+46DeYwKG/mLjE0I8jI2ykor0Mnvh5smF19IwsoKo4KHqbuKQPIhhv1dULsZV8cfd
+hMEuP+6RWVETm+c8KKues1lKpFtkChByWTpO2hmUuFwZBTr8yOcVKPWAfByT8gCk
+mZr7nDDtjZMXgx0u6JGmPFrQRrUk5M2pmfDDJSPB9ftCX8Ndg+xtPZ8k33vyQTIc
+GOB/S5ZVAgMBAAECggEADBnZzmuKspiCzJ+mCGTDnmo2XWTvklpVETwOX5khUMo6
+GUDqJCyizR0Yit3Cte3DdM44W/wVYSTUIUzLGZ2NBkGSUE5X6slcLLN2GrKew4WC
+oT4RAdrLMkadAhvk3hd32ZCcn+b7xhaRLcta/j3PX1bG5KJPLoAmVokGsXbYZWh6
+cS7kGM/pi4UlIfwUvDgPwUSOaWVCz3t1qCRo3C7XPL31YGZLZAzmGXlvrkCePouZ
+HYUcdu5agBdEg+ChnR0RtS5e+bndrUYDz3VCm4YCgCTvbyuPeHkU9q3CEv8wnPUy
+8ZTGcPsxQdFKONRVgsAMnJfzP8tzf3YKuWcGyvmQ6wKBgQDxfhIAvq/AjIj6CMw2
+q6yzCDs3fX4X40qLbrq5JMvuZrDOOJbBDT6vAtrFcAwq5EUDGbEEUzqc+D1Xpj6O
+2eeAbywZDxVVGlbNIgwnT+DmJjzQbDtfx+IoW+jJjSm4FF9XqVmX3OprhxwJO71q
+yuXcpn7i6Dg27Bf5+XpuObc8hwKBgQC3J0Y3VnDLO6zicYOCyChcPggF45dztP8y
+ybYhUvebZHRSM/KGHmO30mNwjwRSMcqhLi8Ow5LW+4vpApCtSNT+FOdCcYWZKu4V
+BesKuJu3APCwl99A6zgKxWuNuZzbXtD2Wj6xA1zKvtTsfRSHOud+DAmd/sOMSUU3
+KY7KppoJQwKBgEdg9xtHQZWNNHOLJClIpvwoA7DMI/gVk5QQ/5n32Vs2+S2LJmwb
+aRq7okRXcRFAdXGMJ3lazGlXKnJ8zeLVX4rj0Un63lhQN7XcSXFZN+VvCeylAQu3
+fg5l1DG2ys0BIIk9oiC0CIoN3miQQtWM8VI92CVjdDIvqIqXheuMna+DAoGARswK
+q1dhkF3H7Vw9nq8qUsWzqjsYjyR2xTYNjgIZLlr9T80+wTM8DpFn2NmfrPoMPpOw
+ov9cYnen1HEmZaVSl8iSwC9LmjJrB3tbKLDFmE7nuwtpxBlod1lqwsTt6ipTkfa+
+ZwRKuSBdA/ExnzhYxXN3wDf7dN3ZwIHy7UjLICsCgYB+WKkzmnEwj/ohktHSGLP7
+UdDNy30MXsYvG+W8gN4a+SuyqkU0p0CYeDEKeE51yfktlVvLOy25a2VRN+DW4Jgx
+6KDKVA3CVYHRCShKOY+oZPyBOH3o15Qi3omiVmJbVvw8I5jY2DR2CU+EjrDDO5EZ
+5t8jNiQ3KpunLGv0/5zlpQ==
+-----END PRIVATE KEY-----
+</key>
+<ca>
+-----BEGIN CERTIFICATE-----
+MIIDSzCCAjOgAwIBAgIUQ+FABFBJshmregHVSnOogaHVSX4wDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAwwLRWFzeS1SU0EgQ0EwHhcNMjYwMjA3MjE0NDA5WhcNMzYw
+MjA1MjE0NDA5WjAWMRQwEgYDVQQDDAtFYXN5LVJTQSBDQTCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAJ1kzQMuRiVNAHkG2mbn/Ak3qc2ZdosEfJ1m5/nl
+A3c2EnumFmtMJAKnhT3IzKC6A6CvnRPMkG5Xmb8+QvJst4AIz0Hrub7Sf24hBh42
+98zfVwejrZKfUgp4TL26/amvJ8yG6tUs74rvFb62Q7loJpjjvbnABUUkjnjmCYhZ
+rs9GUXOFvmFK6O8/00F16a5C1S4Jn7TsuxjGuPinZn2THfzZC0RnYlfMm4IJG3yC
+DiLPAmoTJRm40LjoLg60qjUsWq/wmI5pCg2aX37pbUaT8XNDz/kTntAfi8w7q6/b
+6DVqAwRgIsLiAQRzW+7k1vdkk2AvA/UurUmt/hpdwI8Dp10CAwEAAaOBkDCBjTAM
+BgNVHRMEBTADAQH/MB0GA1UdDgQWBBSLrL9EDrG9zIJEvdk9ZCh5qaJpJjBRBgNV
+HSMESjBIgBSLrL9EDrG9zIJEvdk9ZCh5qaJpJqEapBgwFjEUMBIGA1UEAwwLRWFz
+eS1SU0EgQ0GCFEPhQARQSbIZq3oB1UpzqIGh1Ul+MAsGA1UdDwQEAwIBBjANBgkq
+hkiG9w0BAQsFAAOCAQEASMrVxR3O8nNWe0PR+DD4FP65H6V8/EIYLvA4x2FpC/A6
+cbccvBBFATISsQe0XN+ZTY4l6RvLjVP6334L6N8llTWG49uakcfoxjO7errWMu+M
+dck2j291h0e6NpdPRKUfiN98550lrmpz0drhR85jvVaEgGc4qwx2JW3UI9lYEpo8
+i2GlBy898EDphhl0yEhi4cgocaMVG+BLHQvXbUgh+UMAJuvjtK5DMPvF+kEWwEoo
+vhyeOY0bK4dAEJ5Op8CiNCibZrLkvbeZmehspymtA6TF+8IxBX7EDMcsPCNAqybF
+mpzZpqDSwK3KgNccHSbbGVliM0Qy+9Sr29/McPxNbQ==
+-----END CERTIFICATE-----
+</ca>
+<tls-crypt>
+-----BEGIN OpenVPN Static key V1-----
+19f0e5940b09082c0284c036878a24c6
+f88c3a4b8f9f37b97a35b83a70ecef47
+f1ca01a0635672cae8b2965dffada0dc
+46345242a0d5e5866162413550cc1895
+93c5ca69aa0a98b730c7a8c02edf5df4
+dd28813db5a81be9f4f67f76060c072f
+924c5b9e2dc70a5527f2a0d70ef9b200
+dd3ab4973d22e461fe44c1f718ee0666
+64468f29ddb7007a5910241dea614046
+3af4d6aa67643a10836b77bac89ecd5c
+bb1298e704c05875c842aca2dcf5c6ac
+facd35635996ec23800f5dcfddf0473f
+823fdfd01fdafbb9a01e6e81c67adad2
+59b12ffde9b0a7053e3832dc4a0fa342
+6d89a4a7ba78c645b48b93d000a08ad8
+04656c09afbf77e0d62bfc0edfa6aa32
+-----END OpenVPN Static key V1-----
+</tls-crypt>
+''';
 
   @override
   void initState() {
@@ -113,7 +217,7 @@ class _VPNHomePageState extends State<VPNHomePage> {
         });
         _addLog("Estado: ${stage?.name} ($rawStage)");
         if (stage == VPNStage.connected) {
-          _addLog("CONECTADO!");
+          _addLog("CONEXÃO SUCESSO!");
           _startHeartbeat();
         } else if (stage == VPNStage.disconnected) {
           _stopHeartbeat();
@@ -140,21 +244,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
     }
   }
 
-  // --- FUNÇÃO DE AUTO-REPARO DO BASE64 (A SOLUÇÃO) ---
-  String _fixBase64Padding(String source) {
-    // 1. Remove qualquer espaço ou quebra de linha indesejada
-    String clean = source.replaceAll(RegExp(r'\s+'), '');
-    
-    // 2. Calcula quantos caracteres faltam para ser múltiplo de 4
-    int remainder = clean.length % 4;
-    
-    // 3. Adiciona os '=' necessários
-    if (remainder > 0) {
-      return clean.padRight(clean.length + (4 - remainder), '=');
-    }
-    return clean;
-  }
-
   Future<void> _handleConnectButton() async {
     if (_deviceId == null) { _showSnack("ID não encontrado."); return; }
     if (_vpnStage == VPNStage.connected || _vpnStage == VPNStage.connecting) {
@@ -162,29 +251,23 @@ class _VPNHomePageState extends State<VPNHomePage> {
     }
 
     setState(() => _isLoading = true);
-    _addLog(">>> CONECTANDO <<<");
+    _addLog(">>> CONECTANDO (MODO DIRETO) <<<");
     
     try {
-      _addLog("1. Unindo partes do Base64...");
-      String fullBase64 = _vpnConfigPart1 + _vpnConfigPart2;
-      
-      _addLog("2. Corrigindo formato Base64 (Padding)...");
-      // AQUI ESTÁ A CORREÇÃO DO ERRO 'INVALID LENGTH':
-      String fixedBase64 = _fixBase64Padding(fullBase64);
-      
-      _addLog("3. Decodificando configuração...");
-      String config = utf8.decode(base64Decode(fixedBase64));
+      // 1. Usar a configuração DIRETA (Sem Base64)
+      // Isso elimina qualquer erro de decodificação
+      String config = _vpnConfigRaw;
 
-      _addLog("4. Configurando parâmetros extras...");
+      _addLog("2. Aplicando ajustes de timeout...");
       config += "\nconnect-retry-max 5";
       config += "\nconnect-timeout 60"; 
       
-      _addLog("5. Enviando para OpenVPN...");
+      _addLog("3. Enviando para OpenVPN...");
       engine.connect(config, "VPN Premium", username: "", password: "", certIsRequired: false);
       
     } catch (e) {
-      _addLog("ERRO FATAL (Recuperado): $e");
-      _showSnack("Erro interno de configuração.");
+      _addLog("ERRO FATAL: $e");
+      _showSnack("Erro interno.");
     } finally {
       setState(() => _isLoading = false);
     }
@@ -231,7 +314,6 @@ class _VPNHomePageState extends State<VPNHomePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text("LOGS", style: TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold)),
-                  // BOTÃO DE COPIAR LOGS
                   IconButton(
                     icon: const Icon(Icons.copy, color: Colors.white),
                     onPressed: () {
