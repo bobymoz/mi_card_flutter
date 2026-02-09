@@ -1,4 +1,4 @@
-name: Build Pro APK (Compressed)
+name: Build Light APK
 
 on:
   push:
@@ -27,13 +27,12 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      # O comando --release agora vai usar o MinifyEnabled=true que configuramos no Gradle
-      # Isso vai reduzir de 170MB para +/- 20MB
-      - name: Build APK Universal
+      # Agora o Gradle vai filtrar as arquiteturas sozinho
+      - name: Build APK Otimizado
         run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: vpn-app-optimized
+          name: vpn-app-lite
           path: build/app/outputs/flutter-apk/app-release.apk
