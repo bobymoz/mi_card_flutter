@@ -1,13 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="co.appbrewery.mi_card">
+    package="com.leone.vpn_premium">
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <application
         android:label="VPN Premium"
+        android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         
@@ -29,7 +32,7 @@
             </intent-filter>
         </activity>
         
-        <!-- SERVIÇO DE VPN -->
+        <!-- SERVIÇO CRUCIAL PARA A VPN FUNCIONAR -->
         <service
             android:name="id.laskarmedia.openvpn_flutter.OpenVPNService"
             android:permission="android.permission.BIND_VPN_SERVICE" 
