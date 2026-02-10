@@ -1,4 +1,4 @@
-name: Build Light APK
+name: Build Release (Ultra Light)
 
 on:
   push:
@@ -27,12 +27,20 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      # Agora o Gradle vai filtrar as arquiteturas sozinho
-      - name: Build APK Otimizado
-        run: flutter build apk --release
+      # GERA DOIS APKs PEQUENOS
+      - name: Build APK (Release & Split)
+        run: flutter build apk --release --split-per-abi
 
-      - name: Upload APK
+      # Upload para celulares novos (Maioria)
+      - name: Upload APK Arm64 (Celulares Novos)
         uses: actions/upload-artifact@v4
         with:
-          name: vpn-app-lite
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: vpn-app-arm64
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+      # Upload para celulares velhos
+      - name: Upload APK ArmV7 (Celulares Antigos)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn-app-armv7
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
