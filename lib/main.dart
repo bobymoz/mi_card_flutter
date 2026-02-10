@@ -1,13 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
-import 'package:http/http.dart' as http;
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +15,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VPN Premium',
+      title: 'MZ VPN Premium',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -28,48 +24,14 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const SplashScreen(),
+      home: const VPNHomePage(),
     );
   }
 }
 
-// --- TELA DE SPLASH (Início Bonito) ---
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => const VPNHomePage()));
-    });
-  }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.shield, size: 100, color: Color(0xFF00FF41)),
-            const SizedBox(height: 20),
-            const Text("VPN PREMIUM", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 4)),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(color: Color(0xFF00FF41))
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// --- TELA PRINCIPAL ---
 class VPNHomePage extends StatefulWidget {
   const VPNHomePage({Key? key}) : super(key: key);
+
   @override
   State<VPNHomePage> createState() => _VPNHomePageState();
 }
@@ -78,23 +40,18 @@ class _VPNHomePageState extends State<VPNHomePage> with TickerProviderStateMixin
   late OpenVPN engine;
   VPNStage? _vpnStage = VPNStage.disconnected;
   VpnStatus? _vpnStatus;
-  String? _deviceId;
-  String _uiStatusText = "DESCONECTADO";
-  Timer? _heartbeatTimer;
-  Timer? _connectionTimeoutTimer;
+  String _uiStatusText = "TOCAR PARA CONECTAR";
   
-  // Animação
+  // Animação do botão
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   
-  // Logs
+  // Logs locais (Apenas para debug visual)
   final List<String> _logs = [];
   final ScrollController _logScrollCtrl = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  final String _apiBaseUrl = "http://51.79.117.132:8080";
-  
-  // CONFIGURAÇÃO RAW
+  // --- CONFIGURAÇÃO RAW (SEM BASE64 PARA EVITAR ERROS) ---
   final String _vpnConfigRaw = '''
 client
 dev tun
@@ -207,35 +164,36 @@ facd35635996ec23800f5dcfddf0473f
   @override
   void initState() {
     super.initState();
-    _addLog("App Iniciado. Versão Release.");
-    _getDeviceId();
+    _requestPermissions();
     _initOpenVPN();
     
-    // Configura animação de pulso
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _pulseController = AnimationController(vsync: this, duration: const Duration(seconds: 1));
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
 
+  Future<void> _requestPermissions() async {
+    // Solicita permissão de Notificação (Android 13+) para garantir que o ícone apareça
+    await Permission.notification.request();
+  }
+
   @override
   void dispose() {
-    _heartbeatTimer?.cancel();
-    _connectionTimeoutTimer?.cancel();
     _logScrollCtrl.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
-  // --- LOGS E UTILITÁRIOS ---
+  // --- LOGS ---
   void _addLog(String log) {
     if (!mounted) return;
+    // Filtro de segurança visual
     if (log.length > 500) log = "${log.substring(0, 500)}...";
     setState(() {
       String hora = DateTime.now().toString().split(' ')[1].substring(0, 8);
       _logs.add("[$hora] $log");
     });
-    // Auto-scroll só se o drawer estiver aberto
     if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_logScrollCtrl.hasClients) _logScrollCtrl.jumpTo(_logScrollCtrl.position.maxScrollExtent);
@@ -243,34 +201,21 @@ facd35635996ec23800f5dcfddf0473f
     }
   }
 
-  Future<void> _getDeviceId() async {
-    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-      setState(() => _deviceId = androidInfo.id);
-      _addLog("ID Carregado: ...${_deviceId?.substring(_deviceId!.length - 4)}");
-    }
-  }
-
   void _initOpenVPN() {
     engine = OpenVPN(
       onVpnStageChanged: (stage, rawStage) {
-        if (stage == _vpnStage) return; // Evita duplicidade
+        if (stage == _vpnStage) return;
 
         setState(() {
           _vpnStage = stage;
           _updateUIStatus(stage);
         });
         
-        _addLog("Status: ${stage?.name}");
+        _addLog("Estado: ${stage?.name}");
 
         if (stage == VPNStage.connected) {
-          _addLog("CONEXÃO SUCESSO!");
           _pulseController.stop();
-          _connectionTimeoutTimer?.cancel(); // Cancela timeout
-          _startHeartbeat();
         } else if (stage == VPNStage.disconnected) {
-          _stopHeartbeat();
           _pulseController.stop();
         } else if (stage == VPNStage.connecting) {
           _pulseController.repeat(reverse: true);
@@ -280,27 +225,23 @@ facd35635996ec23800f5dcfddf0473f
     );
 
     engine.initialize(
-      groupIdentifier: "group.com.vpn.premium",
+      groupIdentifier: "group.com.leone.vpn",
       providerBundleIdentifier: "id.laskarmedia.openvpn_flutter.OpenVPNService",
-      localizedDescription: "VPN Premium",
+      localizedDescription: "MZ VPN Conectada", // Título da Notificação
     );
   }
 
   void _updateUIStatus(VPNStage? stage) {
     switch (stage) {
-      case VPNStage.connected: _uiStatusText = "CONECTADO"; break;
+      case VPNStage.connected: _uiStatusText = "VPN ATIVA"; break;
       case VPNStage.connecting: _uiStatusText = "CONECTANDO..."; break;
       case VPNStage.disconnecting: _uiStatusText = "DESCONECTANDO..."; break;
-      case VPNStage.disconnected: _uiStatusText = "DESCONECTADO"; break;
+      case VPNStage.disconnected: _uiStatusText = "TOCAR PARA CONECTAR"; break;
       default: _uiStatusText = "AGUARDANDO";
     }
   }
 
-  // --- LÓGICA DE CONEXÃO ROBUSTA ---
   Future<void> _handleConnectButton() async {
-    if (_deviceId == null) { _showSnack("ID não carregado."); return; }
-    
-    // Se estiver conectado ou conectando, desconecta
     if (_vpnStage == VPNStage.connected || _vpnStage == VPNStage.connecting) {
       engine.disconnect();
       return;
@@ -308,7 +249,6 @@ facd35635996ec23800f5dcfddf0473f
 
     _addLog(">>> INICIANDO CONEXÃO <<<");
     
-    // UI: Força estado 'Conectando' imediatamente
     setState(() {
       _vpnStage = VPNStage.connecting;
       _uiStatusText = "CONECTANDO...";
@@ -316,65 +256,25 @@ facd35635996ec23800f5dcfddf0473f
     });
 
     try {
-      // Configuração
+      // Configuração direta e rápida
       String config = _vpnConfigRaw;
-      config += "\nconnect-retry-max 5"; // Tenta 5 vezes
-      config += "\nconnect-timeout 10"; // Timeout curto por tentativa
+      config += "\nconnect-retry-max 5";
+      config += "\nconnect-timeout 20";
       
       _addLog("Enviando config para Engine...");
-      engine.connect(config, "VPN Premium", username: "", password: "", certIsRequired: false);
-      
-      // TIMEOUT MANUAL DE 60 SEGUNDOS
-      // Se o OpenVPN não responder nada em 60s, resetamos a UI
-      _connectionTimeoutTimer?.cancel();
-      _connectionTimeoutTimer = Timer(const Duration(seconds: 60), () {
-        if (_vpnStage == VPNStage.connecting) {
-          _addLog("TIMEOUT: Servidor não respondeu em 60s.");
-          engine.disconnect();
-          _showSnack("Sem resposta do servidor. Tente novamente.");
-        }
-      });
+      // O 'MZ VPN' aqui é o nome que aparece na conexão do Android
+      engine.connect(config, "MZ VPN", username: "", password: "", certIsRequired: false);
 
     } catch (e) {
-      _addLog("Erro Crítico: $e");
+      _addLog("Erro: $e");
       engine.disconnect();
     }
   }
-
-  void _startHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
-      try {
-        final response = await http.post(
-          Uri.parse('$_apiBaseUrl/api/heartbeat'),
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({"device_id": _deviceId}),
-        ).timeout(const Duration(seconds: 10));
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['action'] == 'disconnect') {
-             engine.disconnect();
-             _showDialog("Tempo Esgotado", "Limite diário expirou.");
-          }
-        }
-      } catch (e) { _addLog("Heartbeat Falhou (Rede Instável)"); }
-    });
-  }
-
-  void _stopHeartbeat() => _heartbeatTimer?.cancel();
 
   // --- UI AUXILIAR ---
   void _showSnack(String msg) {
     if(!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  void _showDialog(String title, String msg) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text(title), content: Text(msg),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))]
-    ));
   }
 
   @override
@@ -384,13 +284,12 @@ facd35635996ec23800f5dcfddf0473f
 
     return Scaffold(
       key: _scaffoldKey,
-      // --- DRAWER DE LOGS (LATERAL) ---
       endDrawer: Drawer(
         backgroundColor: const Color(0xFF111111),
         child: Column(
           children: [
             const SizedBox(height: 50),
-            const Text("LOGS DO SISTEMA", style: TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text("LOGS TÉCNICOS", style: TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold)),
             const Divider(color: Colors.grey),
             Expanded(
               child: ListView.builder(
@@ -411,7 +310,7 @@ facd35635996ec23800f5dcfddf0473f
                 onPressed: () {
                    Clipboard.setData(ClipboardData(text: _logs.join("\n")));
                    Navigator.pop(context);
-                   _showSnack("Logs copiados!");
+                   _showSnack("Copiado!");
                 },
               ),
             )
@@ -422,45 +321,39 @@ facd35635996ec23800f5dcfddf0473f
       appBar: AppBar(
         backgroundColor: Colors.transparent, elevation: 0,
         leading: const Icon(Icons.shield, color: Color(0xFF00FF41)),
-        title: const Text("VPN PREMIUM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("MZ VPN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
-          // Botão que abre os Logs
-          TextButton(
-            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(), 
-            child: const Text("LOGS", style: TextStyle(color: Colors.grey))
-          ),
           IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {/* Logica de ativacao mantida */},
-          )
+            icon: const Icon(Icons.terminal, color: Colors.grey),
+            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(), 
+          ),
         ],
       ),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Spacer(),
-          Text(_uiStatusText, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
+          Text(_uiStatusText, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           
           if (_vpnStage == VPNStage.connected && _vpnStatus != null)
              Text("${_vpnStatus!.duration} • ${_vpnStatus!.byteIn}", style: const TextStyle(color: Colors.white70)),
           
           const SizedBox(height: 50),
           
-          // BOTÃO PULSANTE
           Center(
             child: ScaleTransition(
               scale: _pulseAnimation,
               child: GestureDetector(
                 onTap: _handleConnectButton,
                 child: Container(
-                  width: 160, height: 160,
+                  width: 180, height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle, 
                     color: btnColor.withOpacity(0.1), 
                     border: Border.all(color: btnColor, width: 4), 
-                    boxShadow: [BoxShadow(color: btnColor.withOpacity(0.4), blurRadius: 20, spreadRadius: 5)]
+                    boxShadow: [BoxShadow(color: btnColor.withOpacity(0.4), blurRadius: 25, spreadRadius: 5)]
                   ),
-                  child: const Center(child: Icon(Icons.power_settings_new, size: 70, color: Colors.white)),
+                  child: const Center(child: Icon(Icons.power_settings_new, size: 80, color: Colors.white)),
                 ),
               ),
             ),
@@ -468,10 +361,9 @@ facd35635996ec23800f5dcfddf0473f
           
           const Spacer(),
           
-          // Rodapé
           Padding(
             padding: const EdgeInsets.only(bottom: 30, left: 20, right: 20),
-            child: SizedBox(width: double.infinity, height: 55, child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: () async => await launchUrl(Uri.parse("https://wa.me/258863018405"), mode: LaunchMode.externalApplication), icon: const Icon(Icons.star, color: Colors.black), label: const Text("OBTER PREMIUM (20 MT)", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))),
+            child: SizedBox(width: double.infinity, height: 55, child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFD700), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: () async => await launchUrl(Uri.parse("https://wa.me/258863018405"), mode: LaunchMode.externalApplication), icon: const Icon(Icons.support_agent, color: Colors.black), label: const Text("SUPORTE WHATSAPP", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))),
           ),
         ],
       ),
